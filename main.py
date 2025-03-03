@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 import PyPDF2
 import pypandoc
 from docx import Document
+from io import BytesIO
 
 base_url: str = "https://www.bsuir.by/"
 file_save_directory = "content_from_website"
@@ -58,56 +59,32 @@ def parse_html(resp):
 
 def parse_pdf(resp):
 
-    file_name = f"{uuid.uuid4()}.pdf"
-    file_path = os.path.join(file_save_directory, file_name)
-
-    with open(file_path, 'wb') as file:
-        file.write(resp.content)
-
-    with open(file_path, 'rb') as file:
-        reader = PyPDF2.PdfReader(file)
-        parsed_text = ''
-        for page in reader.pages:
-            parsed_text += page.extract_text() + '\n'
-
-    if os.path.exists(file_path):
-        os.remove(file_path)
+    file = BytesIO(resp.content)
+    reader = PyPDF2.PdfReader(file)
+    parsed_text = ''
+    for page in reader.pages:
+        parsed_text += page.extract_text() + '\n'
 
     return parsed_text
 
 
 def parse_docx(resp):
 
-    file_name = f"{uuid.uuid4()}.docx"
-    file_path = os.path.join(file_save_directory, file_name)
+    file = BytesIO(resp.content)
 
-    with open(file_path, 'wb') as file:
-        file.write(resp.content)
-
-    document = Document(file_path)
+    document = Document(file)
     parsed_text = ''
 
     for paragraph in document.paragraphs:
         parsed_text += paragraph.text
-
-    if os.path.exists(file_path):
-        os.remove(file_path)
 
     return parsed_text
 
 
 def parse_doc(resp):
 
-    file_name = f"{uuid.uuid4()}.doc"
-    file_path = os.path.join(file_save_directory, file_name)
-
-    with open(file_path, 'wb') as file:
-        file.write(resp.content)
-
-    parsed_text = pypandoc.convert_file(file_path, 'plain')
-
-    if os.path.exists(file_path):
-        os.remove(file_path)
+    file = BytesIO(resp.content)
+    parsed_text = pypandoc.convert_file(file, 'plain')
 
     return parsed_text
 
