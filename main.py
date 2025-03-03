@@ -6,6 +6,8 @@ import os
 import uuid
 from bs4 import BeautifulSoup
 import PyPDF2
+import pypandoc
+from docx import Document
 
 base_url: str = "https://www.bsuir.by/"
 file_save_directory = "content_from_website"
@@ -15,6 +17,7 @@ unchecked_urls = set()
 
 # Downloading the page and finding all connected pages
 def download_webpage():
+
     current_url = unchecked_urls.pop()
     resp = requests.get(url=current_url)
     if resp.status_code != 200: return
@@ -29,22 +32,32 @@ def write_to_file(resp):
 
     if resp.url.endswith('.pdf') or resp.url.endswith('.PDF'):
         parsed_text = parse_pdf(resp)
+
+    elif resp.url.endswith('.doc') or resp.url.endswith('.DOC'):
+        parsed_text = parse_doc(resp)
+
+    elif resp.url.endswith('.docx') or resp.url.endswith('.DOCX'):
+        parsed_text = parse_docx(resp)
+
     else:
         parsed_text = parse_html(resp)
 
     file_name = f"{uuid.uuid4()}.txt"
     file_path = os.path.join(file_save_directory, file_name)
+
     with open(file_path, "w", encoding="utf-8") as file:
         file.write(parsed_text)
 
 
 def parse_html(resp):
+
     soup = BeautifulSoup(resp.text, 'html.parser')
     parsed_text = soup.get_text(strip=False).replace('\n', ' ')
     return parsed_text
 
 
 def parse_pdf(resp):
+
     file_name = f"{uuid.uuid4()}.pdf"
     file_path = os.path.join(file_save_directory, file_name)
 
@@ -63,8 +76,45 @@ def parse_pdf(resp):
     return parsed_text
 
 
+def parse_docx(resp):
+
+    file_name = f"{uuid.uuid4()}.docx"
+    file_path = os.path.join(file_save_directory, file_name)
+
+    with open(file_path, 'wb') as file:
+        file.write(resp.content)
+
+    document = Document(file_path)
+    parsed_text = ''
+
+    for paragraph in document.paragraphs:
+        parsed_text += paragraph.text
+
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
+    return parsed_text
+
+
+def parse_doc(resp):
+
+    file_name = f"{uuid.uuid4()}.doc"
+    file_path = os.path.join(file_save_directory, file_name)
+
+    with open(file_path, 'wb') as file:
+        file.write(resp.content)
+
+    parsed_text = pypandoc.convert_file(file_path, 'plain')
+
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
+    return parsed_text
+
+
 # Finding all relative links inside href="" attributes
 def find_all_relative_links(resp_text, current_url):
+
     pattern = 'href=\"([^\"]+)\"'
     links = re.findall(pattern, resp_text)
     result = []
@@ -80,6 +130,7 @@ def find_all_relative_links(resp_text, current_url):
 
 # Finding all links which start with 'https://'
 def find_all_absolute_links(resp_text):
+
     pattern = "http[s]?://[^\s\"'<>]+"
     links = re.findall(pattern, resp_text)
 
@@ -94,6 +145,7 @@ def find_all_absolute_links(resp_text):
 
 # To delete from the url part with arguments or anchor
 def url_before_arguments(url_with_arguments):
+
     question_mark_index = str(url_with_arguments).find('?')
     if question_mark_index != -1: return str(url_with_arguments)[:question_mark_index]
 
@@ -105,6 +157,7 @@ def url_before_arguments(url_with_arguments):
 
 # Finding all links in resp_text. Adding new urls into unchecked_urls
 def find_all_links(resp_text, current_url):
+
     links = find_all_relative_links(resp_text, current_url)
     links.extend(find_all_absolute_links(resp_text))
 
