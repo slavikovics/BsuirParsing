@@ -1,3 +1,4 @@
+import subprocess
 from urllib.parse import urljoin
 
 import requests
@@ -6,9 +7,9 @@ import os
 import uuid
 from bs4 import BeautifulSoup
 import PyPDF2
-import pypandoc
 from docx import Document
 from io import BytesIO
+import tempfile
 
 base_url: str = "https://www.bsuir.by/"
 file_save_directory = "content_from_website"
@@ -17,15 +18,14 @@ unchecked_urls = set()
 
 
 # Downloading the page and finding all connected pages
-def download_webpage():
+def download_webpage(current_url):
 
-    current_url = unchecked_urls.pop()
     resp = requests.get(url=current_url)
     if resp.status_code != 200: return
     write_to_file(resp)
     find_all_links(resp.text, current_url)
     checked_urls.add(current_url)
-    print(f"Downloaded from: {current_url}.")
+    print(f"Downloaded from: {current_url}. In queue: {len(unchecked_urls)}. Completed: {len(checked_urls)}")
 
 
 # Parsing text with html parser and writing it's content to file_save_directory
@@ -35,7 +35,7 @@ def write_to_file(resp):
         parsed_text = parse_pdf(resp)
 
     elif resp.url.endswith('.doc') or resp.url.endswith('.DOC'):
-        parsed_text = parse_doc(resp)
+        return
 
     elif resp.url.endswith('.docx') or resp.url.endswith('.DOCX'):
         parsed_text = parse_docx(resp)
@@ -83,10 +83,8 @@ def parse_docx(resp):
 
 def parse_doc(resp):
 
-    file = BytesIO(resp.content)
-    parsed_text = pypandoc.convert_file(file, 'plain')
-
-    return parsed_text
+    # TODO maybe use c# Aspose.Words and launch it as a process
+    return
 
 
 # Finding all relative links inside href="" attributes
@@ -141,16 +139,19 @@ def find_all_links(resp_text, current_url):
     for link in links:
         if str(link).find(".css") != -1: continue
         if str(link).find(".js") != -1: continue
+        if any(ext in str(link) for ext in [".png", ".jpg", ".doc", ".rss", ".RTF", ".ico"]):
+            continue
         if str(link).find("https://bsuir.by") == -1 and str(link).find("https://www.bsuir.by") == -1: continue
-        if link not in checked_urls: unchecked_urls.add(link)
+        if link not in checked_urls: unchecked_urls.add(link) # and not in unchecked_urls
 
 
 unchecked_urls.add(base_url)
 while len(unchecked_urls) != 0:
     try:
-        download_webpage()
+        current_url = unchecked_urls.pop()
+        download_webpage(current_url)
     except Exception as e:
-        print(f"Error occurred: {e}")
+        print(f"Error occurred: {e}. Error in: {current_url}")
 
 print("Checked urls:")
 for url in checked_urls:
