@@ -30,6 +30,7 @@ def download_webpage(current_url):
 
 # Parsing text with html parser and writing it's content to file_save_directory
 def write_to_file(resp):
+    content_type = resp.headers.get('Content-Type', '')
 
     if resp.url.endswith('.pdf') or resp.url.endswith('.PDF'):
         parsed_text = parse_pdf(resp)
@@ -40,8 +41,11 @@ def write_to_file(resp):
     elif resp.url.endswith('.docx') or resp.url.endswith('.DOCX'):
         parsed_text = parse_docx(resp)
 
+    elif 'text/html' in content_type:
+        parsed_text = parse_html_complicated(resp)
+
     else:
-        parsed_text = parse_html(resp)
+        return
 
     file_name = f"{uuid.uuid4()}.txt"
     file_path = os.path.join(file_save_directory, file_name)
@@ -55,6 +59,20 @@ def parse_html(resp):
     soup = BeautifulSoup(resp.text, 'html.parser')
     parsed_text = soup.get_text(strip=False).replace('\n', ' ')
     return parsed_text
+
+
+def parse_html_complicated(resp):
+    soup = BeautifulSoup(resp.text, 'html.parser')
+    content_tags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'div', 'strong']
+    excluded_tags = ['button', 'nav', 'header', 'footer']
+    content_text = []
+
+    for tag in soup.find_all(content_tags):
+        if not any(parent.name in excluded_tags for parent in tag.parents):
+            content_text.append(tag.get_text(strip=False))
+
+    result = '\n'.join(content_text)
+    return re.sub(r'\s+', ' ', result)
 
 
 def parse_pdf(resp):
