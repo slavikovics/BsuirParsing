@@ -23,7 +23,7 @@ def download_webpage(current_url):
     resp = requests.get(url=current_url)
     if resp.status_code != 200: return
     write_to_file(resp)
-    find_all_links(resp.text, current_url)
+    find_all_links(resp.text, current_url, only_html=True)
     checked_urls.add(current_url)
     print(f"Downloaded from: {current_url}. In queue: {len(unchecked_urls)}. Completed: {len(checked_urls)}")
 
@@ -140,34 +140,50 @@ def find_all_absolute_links(resp_text):
 def url_before_arguments(url_with_arguments):
 
     question_mark_index = str(url_with_arguments).find('?')
-    if question_mark_index != -1: return str(url_with_arguments)[:question_mark_index]
+    if question_mark_index != -1:
+        return str(url_with_arguments)[:question_mark_index]
 
     anchor_index = str(url_with_arguments).find('#')
-    if anchor_index != -1: return str(url_with_arguments)[:anchor_index]
+    if anchor_index != -1:
+        return str(url_with_arguments)[:anchor_index]
 
     return url_with_arguments
 
 
 # Finding all links in resp_text. Adding new urls into unchecked_urls
-def find_all_links(resp_text, current_url):
+def find_all_links(resp_text, current_url, only_html=False):
 
     links = find_all_relative_links(resp_text, current_url)
     links.extend(find_all_absolute_links(resp_text))
 
     for link in links:
-        if str(link).find(".css") != -1: continue
-        if str(link).find(".js") != -1: continue
+
+        if str(link).find(".css") != -1:
+            continue
+
+        if str(link).find(".js") != -1:
+            continue
+
         if any(ext in str(link) for ext in [".png", ".jpg", ".doc", ".rss", ".RTF", ".ico"]):
             continue
-        if str(link).find("https://bsuir.by") == -1 and str(link).find("https://www.bsuir.by") == -1: continue
-        if link not in checked_urls: unchecked_urls.add(link) # and not in unchecked_urls
+
+        if only_html and any(ext in  str(link) for ext in [".pdf", ".doc", ".docx", ".DOC", ".DOCX", ".PDF"]):
+            continue
+
+        if str(link).find("https://bsuir.by") == -1 and str(link).find("https://www.bsuir.by") == -1:
+            continue
+
+        if link not in checked_urls:
+            unchecked_urls.add(link) # and not in unchecked_urls
 
 
 unchecked_urls.add(base_url)
 while len(unchecked_urls) != 0:
+
+    current_url = unchecked_urls.pop()
     try:
-        current_url = unchecked_urls.pop()
         download_webpage(current_url)
+
     except Exception as e:
         print(f"Error occurred: {e}. Error in: {current_url}")
 
